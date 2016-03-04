@@ -12,5 +12,6 @@ class SaleOrder(models.Model):
         """
         Override to add Operating Units to Picking.
         """
-        if self.partner_shipping_id.sale_warehouse_id:
-            self.warehouse_id = self.partner_shipping_id.sale_warehouse_id.id
+        if self.partner_shipping_id.property_sale_warehouse_id:
+            self.warehouse_id = \
+                self.partner_shipping_id.property_sale_warehouse_id.id

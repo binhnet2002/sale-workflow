@@ -24,26 +24,17 @@ class TestPartnerDefaultSaleWarehouse(TransactionCase):
         self.ship_to = self.partner_model.create(
             {'name': 'Ship-to for Partner 1',
              'parent_id': self.customer.id,
-             'sale_warehouse_id': self.wh1.id}
+             'property_sale_warehouse_id': self.wh1.id}
         )
         self.product = self.env.ref('product.product_product_4')
-        self.sale_order1 = self.sale_order_model.create({
-            'partner_id': self.customer.id,
-            'order_policy': 'manual',
-            'order_line': [(0, 0, {
-                'name': self.product.name,
-                'product_uom_qty': 1,
-                'price_unit': self.product.list_price,
-                'product_id': self.product.id,
-                'product_uom': self.product.uom_id.id})],
-        })
-        self.sale_order1.partner_shipping_id = self.ship_to.id
 
-    def test_sale_default_warehouse(self):
-        """Test that the sales order has the new warehouse"""
-        # Checks that OU in sale order and stock picking matches or not.
-        self.assertEqual(self.sale_order1.warehouse_id.id,
-                         self.wh1.id,
+    def test_sale_order_onchange_partner(self):
+        sale_order = self.sale_order_model.new({'partner_shipping_id':
+                                                    self.ship_to.id})
+        sale_order._onchange_partner_shipping_id()
+
+        self.assertEqual(sale_order.warehouse_id,
+                         self.wh1,
                          'The sales order does not contain the default '
                          'warehouse indicated in the delivery address '
                          'partner.')

@@ -8,7 +8,7 @@
             <field name="inherit_id" ref="base.view_partner_form" />
             <field name="arch" type="xml">
                 <group name="sale" position="inside">
-                    <field name="sale_warehouse_id"/>
+                    <field name="property_sale_warehouse_id"/>
                 </group>
             </field>
         </record>

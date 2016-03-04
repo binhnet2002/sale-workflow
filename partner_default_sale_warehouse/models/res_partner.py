@@ -7,7 +7,7 @@ from openerp import fields, models
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
-    sale_warehouse_id = fields.Many2one('stock.warehouse',
-                                        'Delivery Warehouse',
-                                        help="Default warehouse proposed in "
-                                             "sales orders.")
+    property_sale_warehouse_id = fields.Many2one(
+        'stock.warehouse', company_dependent=True,
+        string="Delivery Warehouse",
+        help="Default warehouse proposed in sales orders.")
