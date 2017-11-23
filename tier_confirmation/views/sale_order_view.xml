@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2017 Eficent Business and IT Consulting Services S.L.
+     License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl). -->
+<odoo>
+
+    <record id="view_order_form" model="ir.ui.view">
+        <field name="name">sale.order.form - test</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <button name="action_confirm" position="before">
+                <button name="request_validation"
+                        string="Request Validation"
+                        type="object"
+                        states="draft"/>
+                <button name="validate_tier"
+                        string="Validate"
+                        type="object"
+                        states="draft"/>
+                <button name="reject_tier"
+                        string="Reject"
+                        type="object"
+                        states="draft"/>
+            </button>
+            <notebook position="inside">
+                <page string="test">
+                    <field name="review_ids" readonly="1"/>
+                </page>
+            </notebook>
+        </field>
+    </record>
+
+</odoo>
