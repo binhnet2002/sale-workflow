@@ -4,19 +4,20 @@
 
 from openupgradelib import openupgrade
 
+table_renames = [
+    ('sale_order_line_group', 'procurement_group'),
+]
+
 
 def find_procurements(env):
-    groups = env['sale.order.line.group'].search([])
+    groups = env['procurement.group'].search([('order', '!=', False)])
     for group in groups:
         procurements = env['procurement.order'].search(
-            [('sale_line_id', '=', group.sale_line_id)])
-        if procurements:
-            proc_group = env['procurement.group'].create({
-                             'name': group.name
-            })
-            procurements.write({'group_id': proc_group.id})
+            [('sale_line_id', 'in', group.order.order_line)])
+        procurements.write({'group_id': group.id})
 
 
 @openupgrade.migrate(use_env=True)
 def migrate(env, version):
+    openupgrade.rename_tables(env.cr, table_renames)
     find_procurements(env)
