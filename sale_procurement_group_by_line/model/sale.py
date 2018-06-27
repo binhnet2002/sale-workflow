@@ -124,49 +124,52 @@ class SaleOrder(models.Model):
             shipped.
 
         """
-        if not self.order_line:
-            self.shipped = False
-            return
-
-        # keep empty groups
-        groups = set([line.procurement_group_id
-                      for line in self.order_line
-                      if line.product_id.type != 'service'])
-        is_shipped = True
-        for group in groups:
-            if not group or not group.procurement_ids:
-                is_shipped = False
-                break
-            is_shipped &= all([proc.state in ['cancel', 'done']
-                               for proc in group.procurement_ids])
-        self.shipped = is_shipped
+        print("I want to be slow")
+        # if not self.order_line:
+        #     self.shipped = False
+        #     return
+        #
+        # # keep empty groups
+        # groups = set([line.procurement_group_id
+        #               for line in self.order_line
+        #               if line.product_id.type != 'service'])
+        # is_shipped = True
+        # for group in groups:
+        #     if not group or not group.procurement_ids:
+        #         is_shipped = False
+        #         break
+        #     is_shipped &= all([proc.state in ['cancel', 'done']
+        #                        for proc in group.procurement_ids])
+        self.shipped = False
 
     ###
     # OVERRIDE to find sale.order.line's picking
     ###
     def _get_picking_ids(self, cr, uid, ids, name, args, context=None):
         res = {}
-        for sale in self.browse(cr, uid, ids, context=context):
-            group_ids = set([line.procurement_group_id.id
-                             for line in sale.order_line
-                             if line.procurement_group_id])
-            if not any(group_ids):
-                res[sale.id] = []
-                continue
-            res[sale.id] = self.pool['stock.picking'].search(
-                cr, uid, [('group_id', 'in', list(group_ids))],
-                context=context)
+        print("i am dumb")
+        # for sale in self.browse(cr, uid, ids, context=context):
+        #     print('i am here wasting time')
+        #     group_ids = set([line.procurement_group_id.id
+        #                      for line in sale.order_line
+        #                      if line.procurement_group_id])
+        #     if not any(group_ids):
+        #         res[sale.id] = []
+        #         continue
+        #     res[sale.id] = self.pool['stock.picking'].search(
+        #         cr, uid, [('group_id', 'in', list(group_ids))],
+        #         context=context)
         return res
 
     _columns = {
         'picking_ids': osv.fields.function(
             _get_picking_ids, method=True, type='one2many',
             relation='stock.picking',
+            store=False,
             string='Picking associated to this sale'),
     }
 
     shipped = fields.Boolean(
-        compute='_get_shipped',
         string='Delivered',
         store=True)
 

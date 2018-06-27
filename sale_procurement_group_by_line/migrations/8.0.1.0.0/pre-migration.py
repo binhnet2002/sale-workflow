@@ -9,15 +9,15 @@ table_renames = [
 ]
 
 
-def find_procurements(env):
-    groups = env['procurement.group'].search([('order', '!=', False)])
-    for group in groups:
-        procurements = env['procurement.order'].search(
-            [('sale_line_id', 'in', group.order.order_line)])
-        procurements.write({'group_id': group.id})
+def put_default_get_shipped(cr):
+    # if the SO is not done it will be recomputed
+    cr.execute("""
+        UPDATE sale_order SET shipped = false; 
+        UPDATE sale_order SET shipped = true where state='done';
+    """)
 
 
 @openupgrade.migrate(use_env=True)
 def migrate(env, version):
     openupgrade.rename_tables(env.cr, table_renames)
-    find_procurements(env)
+    put_default_get_shipped(env.cr)
