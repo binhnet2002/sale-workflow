@@ -15,4 +15,5 @@ class SaleOrder(models.Model):
 class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
 
-    blanket_line_id = fields.Many2one('sale.blanket.order.line')
+    blanket_line_id = fields.Many2one('sale.blanket.order.line',
+                                      string='Origin blanket order line')

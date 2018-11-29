@@ -13,8 +13,8 @@
         'web_action_conditionable',
     ],
     'data': [
-        'security/ir.model.access.csv',
         'security/security.xml',
+        'security/ir.model.access.csv',
         'data/sequence.xml',
         'data/ir_cron.xml',
         'wizard/create_sale_orders.xml',

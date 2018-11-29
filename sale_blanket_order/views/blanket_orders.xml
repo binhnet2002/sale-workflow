@@ -100,8 +100,22 @@
         <field name="name">sale.blanket.order.search</field>
         <field name="model">sale.blanket.order</field>
         <field name="arch" type="xml">
-            <search string="Blanket Order">
-                <field name="name" select="True"/>
+            <search>
+                <filter name="original_qty"
+                        string="Original Qty"
+                        domain="[('original_qty','>',0.0)]"/>
+                <filter name="ordered_qty"
+                        string="Ordered Qty"
+                        domain="[('ordered_qty','>',0.0)]"/>
+                <filter name="invoiced_qty"
+                        string="Invoiced Qty"
+                        domain="[('invoiced_qty','>',0.0)]"/>
+                <filter name="delivered_qty"
+                        string="Delivered Qty"
+                        domain="[('delivered_qty','>',0.0)]"/>
+                <filter name="remaining_qty"
+                        string="Remaining Qty"
+                        domain="[('remaining_qty','>',0.0)]"/>
             </search>
         </field>
     </record>

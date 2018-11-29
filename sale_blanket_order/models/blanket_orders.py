@@ -47,7 +47,7 @@ class BlanketOrder(models.Model):
         ('draft', 'Draft'),
         ('open', 'Open'),
         ('expired', 'Expired'),
-    ], compute='_compute_state', store=True)
+    ], compute='_compute_state', store=True, copy=False)
     validity_date = fields.Date(
         readonly=True,
         states={'draft': [('readonly', False)]})
@@ -70,12 +70,28 @@ class BlanketOrder(models.Model):
         states={'draft': [('readonly', False)]})
     sale_count = fields.Integer(compute='_compute_sale_count')
 
+    # Fields use to filter in tree view
+    original_qty = fields.Float(
+        string='Original quantity', compute='_compute_original_qty',
+        search='_search_original_qty', default=0.0)
+    ordered_qty = fields.Float(
+        string='Ordered quantity', compute='_compute_ordered_qty',
+        search='_search_ordered_qty', default=0.0)
+    invoiced_qty = fields.Float(
+        string='Invoiced quantity', compute='_compute_invoiced_qty',
+        search='_search_invoiced_qty', default=0.0)
+    remaining_qty = fields.Float(
+        string='Remaining quantity', compute='_compute_remaining_qty',
+        search='_search_remaining_qty', default=0.0)
+    delivered_qty = fields.Float(
+        string='Delivered quantity', compute='_compute_delivered_qty',
+        search='_search_delivered_qty', default=0.0)
+
     @api.multi
     def _get_sale_orders(self):
         return self.mapped('lines_ids.sale_order_lines_ids.order_id')
 
     @api.multi
-    @api.depends('lines_ids.remaining_qty')
     def _compute_sale_count(self):
         for blanket_order in self:
             blanket_order.sale_count = len(blanket_order._get_sale_orders())
@@ -84,7 +100,7 @@ class BlanketOrder(models.Model):
     @api.depends(
         'lines_ids.remaining_qty',
         'validity_date',
-        'confirmed'
+        'confirmed',
     )
     def _compute_state(self):
         today = fields.Date.today()
@@ -100,6 +116,26 @@ class BlanketOrder(models.Model):
                 order.state = 'expired'
             else:
                 order.state = 'open'
+
+    def _compute_original_qty(self):
+        for bo in self:
+            bo.original_qty = sum(bo.mapped('order_id.original_qty'))
+
+    def _compute_ordered_qty(self):
+        for bo in self:
+            bo.ordered_qty = sum(bo.mapped('order_id.ordered_qty'))
+
+    def _compute_invoiced_qty(self):
+        for bo in self:
+            bo.invoiced_qty = sum(bo.mapped('order_id.invoiced_qty'))
+
+    def _compute_delivered_qty(self):
+        for bo in self:
+            bo.delivered_qty = sum(bo.mapped('order_id.delivered_qty'))
+
+    def _compute_remaining_qty(self):
+        for bo in self:
+            bo.remaining_qty = sum(bo.mapped('order_id.remaining_qty'))
 
     @api.multi
     @api.onchange('partner_id')
@@ -181,6 +217,56 @@ class BlanketOrder(models.Model):
         expired_orders.modified(['validity_date'])
         expired_orders.recompute()
 
+    @api.model
+    def _search_original_qty(self, operator, value):
+        bo_line_obj = self.env['sale.blanket.order.line']
+        res = []
+        bo_lines = bo_line_obj.search(
+            [('original_qty', operator, value)])
+        order_ids = bo_lines.mapped('order_id')
+        res.append(('id', 'in', order_ids.ids))
+        return res
+
+    @api.model
+    def _search_ordered_qty(self, operator, value):
+        bo_line_obj = self.env['sale.blanket.order.line']
+        res = []
+        bo_lines = bo_line_obj.search(
+            [('ordered_qty', operator, value)])
+        order_ids = bo_lines.mapped('order_id')
+        res.append(('id', 'in', order_ids.ids))
+        return res
+
+    @api.model
+    def _search_invoiced_qty(self, operator, value):
+        bo_line_obj = self.env['sale.blanket.order.line']
+        res = []
+        bo_lines = bo_line_obj.search(
+            [('invoiced_qty', operator, value)])
+        order_ids = bo_lines.mapped('order_id')
+        res.append(('id', 'in', order_ids.ids))
+        return res
+
+    @api.model
+    def _search_delivered_qty(self, operator, value):
+        bo_line_obj = self.env['sale.blanket.order.line']
+        res = []
+        bo_lines = bo_line_obj.search(
+            [('delivered_qty', operator, value)])
+        order_ids = bo_lines.mapped('order_id')
+        res.append(('id', 'in', order_ids.ids))
+        return res
+
+    @api.model
+    def _search_remaining_qty(self, operator, value):
+        bo_line_obj = self.env['sale.blanket.order.line']
+        res = []
+        bo_lines = bo_line_obj.search(
+            [('remaining_qty', operator, value)])
+        order_ids = bo_lines.mapped('order_id')
+        res.append(('id', 'in', order_ids.ids))
+        return res
+
 
 class BlanketOrderLine(models.Model):
     _name = 'sale.blanket.order.line'
@@ -198,13 +284,17 @@ class BlanketOrderLine(models.Model):
         string='Original quantity', required=True, default=1,
         digits=dp.get_precision('Product Unit of Measure'))
     ordered_qty = fields.Float(
-        string='Ordered quantity', compute='_compute_quantities')
+        string='Ordered quantity', compute='_compute_quantities',
+        store=True)
     invoiced_qty = fields.Float(
-        string='Invoiced quantity', compute='_compute_quantities')
+        string='Invoiced quantity', compute='_compute_quantities',
+        store=True)
     remaining_qty = fields.Float(
-        string='Remaining quantity', compute='_compute_quantities')
+        string='Remaining quantity', compute='_compute_quantities',
+        store=True)
     delivered_qty = fields.Float(
-        string='Delivered quantity', compute='_compute_quantities')
+        string='Delivered quantity', compute='_compute_quantities',
+        store=True)
     sale_order_lines_ids = fields.One2many(
         'sale.order.line', 'blanket_line_id', string='Sale order lines')
     company_id = fields.Many2one(
@@ -304,6 +394,7 @@ class BlanketOrderLine(models.Model):
 
     @api.multi
     @api.depends(
+        'sale_order_lines_ids.order_id.state',
         'sale_order_lines_ids.blanket_line_id',
         'sale_order_lines_ids.product_uom_qty',
         'sale_order_lines_ids.qty_delivered',
@@ -313,9 +404,12 @@ class BlanketOrderLine(models.Model):
     def _compute_quantities(self):
         for line in self:
             sale_lines = line.sale_order_lines_ids
-            line.ordered_qty = sum(l.product_uom_qty for l in sale_lines)
-            line.invoiced_qty = sum(l.qty_invoiced for l in sale_lines)
-            line.delivered_qty = sum(l.qty_delivered for l in sale_lines)
+            line.ordered_qty = sum(l.product_uom_qty for l in sale_lines if
+                                   l.order_id.state != 'cancel')
+            line.invoiced_qty = sum(l.qty_invoiced for l in sale_lines if
+                                    l.order_id.state != 'cancel')
+            line.delivered_qty = sum(l.qty_delivered for l in sale_lines if
+                                     l.order_id.state != 'cancel')
             line.remaining_qty = line.original_qty - line.ordered_qty
 
     @api.multi

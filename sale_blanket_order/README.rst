@@ -63,6 +63,7 @@ Contributors
 ~~~~~~~~~~~~
 
 * André Pereira <github@andreparames.com> (https://www.acsone.eu/)
+* Adrià Gil Sorribes <adria.gil@eficent.com>
 
 Maintainers
 ~~~~~~~~~~~
