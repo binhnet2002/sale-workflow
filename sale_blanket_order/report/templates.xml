@@ -42,7 +42,7 @@
                     </tr>
                </thead>
                <tbody class="sale_tbody">
-                    <t t-foreach="doc.lines_ids" t-as="l">
+                    <t t-foreach="doc.line_ids" t-as="l">
                         <tr>
                             <td><span t-field="l.product_id"/></td>
                             <td class="text-right">

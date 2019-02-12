@@ -9,7 +9,7 @@ import odoo.addons.decimal_precision as dp
 
 class BlanketOrder(models.Model):
     _name = 'sale.blanket.order'
-    _inherit = ['mail.thread']
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Blanket Order'
 
     @api.model
@@ -31,9 +31,14 @@ class BlanketOrder(models.Model):
     partner_id = fields.Many2one(
         'res.partner', string='Partner', readonly=True,
         states={'draft': [('readonly', False)]})
-    lines_ids = fields.One2many(
+    line_ids = fields.One2many(
         'sale.blanket.order.line', 'order_id', string='Order lines',
         copy=True)
+    line_count = fields.Integer(
+        string='Sale Blanket Order Line count',
+        compute='_compute_line_count',
+        readonly=True
+    )
     pricelist_id = fields.Many2one(
         'product.pricelist', string='Pricelist', required=True, readonly=True,
         states={'draft': [('readonly', False)]})
@@ -46,6 +51,7 @@ class BlanketOrder(models.Model):
     state = fields.Selection(selection=[
         ('draft', 'Draft'),
         ('open', 'Open'),
+        ('done', 'Done'),
         ('expired', 'Expired'),
     ], compute='_compute_state', store=True, copy=False)
     validity_date = fields.Date(
@@ -89,7 +95,11 @@ class BlanketOrder(models.Model):
 
     @api.multi
     def _get_sale_orders(self):
-        return self.mapped('lines_ids.sale_order_lines_ids.order_id')
+        return self.mapped('line_ids.sale_lines.order_id')
+
+    @api.depends('line_ids')
+    def _compute_line_count(self):
+        self.line_count = len(self.mapped('line_ids'))
 
     @api.multi
     def _compute_sale_count(self):
@@ -98,7 +108,7 @@ class BlanketOrder(models.Model):
 
     @api.multi
     @api.depends(
-        'lines_ids.remaining_qty',
+        'line_ids.remaining_qty',
         'validity_date',
         'confirmed',
     )
@@ -111,9 +121,9 @@ class BlanketOrder(models.Model):
                 order.state = 'draft'
             elif order.validity_date <= today:
                 order.state = 'expired'
-            elif float_is_zero(sum(order.lines_ids.mapped('remaining_qty')),
+            elif float_is_zero(sum(order.line_ids.mapped('remaining_qty')),
                                precision_digits=precision):
-                order.state = 'expired'
+                order.state = 'done'
             else:
                 order.state = 'open'
 
@@ -180,10 +190,16 @@ class BlanketOrder(models.Model):
                 assert order.validity_date > today, \
                     _("Validity date must be in the future")
                 assert order.partner_id, _("Partner is mandatory")
-                assert len(order.lines_ids) > 0, _("Must have some lines")
-                order.lines_ids._validate()
+                assert len(order.line_ids) > 0, _("Must have some lines")
+                order.line_ids._validate()
         except AssertionError as e:
             raise UserError(e)
+
+    @api.multi
+    def set_to_draft(self):
+        for order in self:
+            order.write({'state': 'draft'})
+        return True
 
     @api.multi
     def action_confirm(self):
@@ -198,6 +214,12 @@ class BlanketOrder(models.Model):
         return True
 
     @api.multi
+    def action_cancel(self):
+        for order in self:
+            order.write({'state': 'expired'})
+        return True
+
+    @api.multi
     def action_view_sale_orders(self):
         sale_orders = self._get_sale_orders()
         action = self.env.ref('sale.action_orders').read()[0]
@@ -205,6 +227,16 @@ class BlanketOrder(models.Model):
             action['domain'] = [('id', 'in', sale_orders.ids)]
         else:
             action = {'type': 'ir.actions.act_window_close'}
+        return action
+
+    @api.multi
+    def action_view_sale_blanket_order_line(self):
+        action = self.env.ref(
+            'sale_blanket_order'
+            '.act_open_sale_blanket_order_lines_view_tree').read()[0]
+        lines = self.mapped('line_ids')
+        if len(lines) > 0:
+            action['domain'] = [('id', 'in', lines.ids)]
         return action
 
     @api.model
@@ -271,7 +303,9 @@ class BlanketOrder(models.Model):
 class BlanketOrderLine(models.Model):
     _name = 'sale.blanket.order.line'
     _description = 'Blanket Order Line'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
 
+    name = fields.Char('Description', track_visibility='onchange')
     sequence = fields.Integer()
     order_id = fields.Many2one(
         'sale.blanket.order', required=True, ondelete='cascade')
@@ -280,6 +314,7 @@ class BlanketOrderLine(models.Model):
     product_uom = fields.Many2one(
         'product.uom', string='Unit of Measure', required=True)
     price_unit = fields.Float(string='Price', required=True)
+    date_schedule = fields.Date(string='Scheduled Date')
     original_qty = fields.Float(
         string='Original quantity', required=True, default=1,
         digits=dp.get_precision('Product Unit of Measure'))
@@ -295,11 +330,37 @@ class BlanketOrderLine(models.Model):
     delivered_qty = fields.Float(
         string='Delivered quantity', compute='_compute_quantities',
         store=True)
-    sale_order_lines_ids = fields.One2many(
-        'sale.order.line', 'blanket_line_id', string='Sale order lines')
+    sale_lines = fields.One2many(
+        'sale.order.line', 'blanket_order_line', string='Sale order lines')
     company_id = fields.Many2one(
         'res.company', related='order_id.company_id', store=True,
         readonly=True)
+    partner_id = fields.Many2one(
+        related='order_id.partner_id',
+        string='Customer',
+        readonly=True)
+    user_id = fields.Many2one(
+        related='order_id.user_id', string='Responsible',
+        readonly=True)
+    payment_term_id = fields.Many2one(
+        related='order_id.payment_term_id', string='Payment Terms',
+        readonly=True)
+    pricelist_id = fields.Many2one(
+        related='order_id.pricelist_id', string='Pricelist',
+        readonly=True)
+
+    def name_get(self):
+        """Return special label when showing fields in chart update wizard."""
+        result = []
+        if self.env.context.get('from_sale_order'):
+            for record in self:
+                res = "[%s] - Date Scheduled: %s (remaining: %s)" % (
+                    record.order_id.name,
+                    record.date_schedule,
+                    str(record.remaining_qty))
+                result.append((record.id, res))
+            return result
+        return super(BlanketOrderLine, self).name_get()
 
     def _get_real_price_currency(self, product, rule_id, qty, uom,
                                  pricelist_id):
@@ -388,28 +449,37 @@ class BlanketOrderLine(models.Model):
     @api.onchange('product_id', 'original_qty')
     def onchange_product(self):
         if self.product_id:
+            name = self.product_id.name
             self.product_uom = self.product_id.uom_id.id
             if self.order_id.pricelist_id and self.order_id.partner_id:
                 self.price_unit = self._get_display_price(self.product_id)
+            if self.product_id.code:
+                name = '[%s] %s' % (name, self.product_id.code)
+            if self.product_id.description_purchase:
+                name += '\n' + self.product_id.description_purchase
+            self.name = name
 
     @api.multi
     @api.depends(
-        'sale_order_lines_ids.order_id.state',
-        'sale_order_lines_ids.blanket_line_id',
-        'sale_order_lines_ids.product_uom_qty',
-        'sale_order_lines_ids.qty_delivered',
-        'sale_order_lines_ids.qty_invoiced',
+        'sale_lines.order_id.state',
+        'sale_lines.blanket_order_line',
+        'sale_lines.product_uom_qty',
+        'sale_lines.qty_delivered',
+        'sale_lines.qty_invoiced',
         'original_qty',
     )
     def _compute_quantities(self):
         for line in self:
-            sale_lines = line.sale_order_lines_ids
+            sale_lines = line.sale_lines
             line.ordered_qty = sum(l.product_uom_qty for l in sale_lines if
-                                   l.order_id.state != 'cancel')
+                                   l.order_id.state != 'cancel' and
+                                   l.product_id == line.product_id)
             line.invoiced_qty = sum(l.qty_invoiced for l in sale_lines if
-                                    l.order_id.state != 'cancel')
+                                    l.order_id.state != 'cancel' and
+                                    l.product_id == line.product_id)
             line.delivered_qty = sum(l.qty_delivered for l in sale_lines if
-                                     l.order_id.state != 'cancel')
+                                     l.order_id.state != 'cancel' and
+                                     l.product_id == line.product_id)
             line.remaining_qty = line.original_qty - line.ordered_qty
 
     @api.multi

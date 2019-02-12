@@ -1,7 +1,7 @@
 # Copyright 2018 Acsone
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 {
-    'name': 'Blanket Orders',
+    'name': 'Sale Blanket Orders',
     'category': 'Sale',
     'license': 'AGPL-3',
     'author': 'Acsone SA/NV,Odoo Community Association (OCA)',
@@ -9,7 +9,7 @@
     'website': 'https://github.com/OCA/sale-workflow',
     'summary': "Blanket Orders",
     'depends': [
-        'sale',
+        'sale_management',
         'web_action_conditionable',
     ],
     'data': [
