@@ -20,7 +20,10 @@ class TestSaleBlanketOrders(common.TransactionCase):
             'supplier': True,
         })
         self.payment_term = self.env.ref('account.account_payment_term_net')
-        self.sale_pricelist = self.env.ref('product.list0')
+        self.sale_pricelist = self.env['product.pricelist'].create({
+            'name': 'Test Pricelist',
+            'currency_id': self.env.ref('base.USD').id,
+        })
 
         # Seller IDS
         seller = self.env['product.supplierinfo'].create({
@@ -65,6 +68,7 @@ class TestSaleBlanketOrders(common.TransactionCase):
         })
         blanket_order.sudo().onchange_partner_id()
         blanket_order.line_ids[0].sudo().onchange_product()
+        blanket_order.line_ids[0].sudo()._get_display_price(self.product)
 
         self.assertEqual(blanket_order.state, 'draft')
 
@@ -74,8 +78,15 @@ class TestSaleBlanketOrders(common.TransactionCase):
 
         blanket_order.validity_date = fields.Date.to_string(self.tomorrow)
         blanket_order.sudo().action_confirm()
-
         self.assertEqual(blanket_order.state, 'open')
+
+        blanket_order.sudo().action_cancel()
+        self.assertEqual(blanket_order.state, 'expired')
+
+        blanket_order.sudo().set_to_draft()
+        self.assertEqual(blanket_order.state, 'draft')
+
+        blanket_order.sudo().action_confirm()
 
     def test_create_sale_orders_from_blanket_order(self):
         """ We create a blanket order and create two sale orders """
