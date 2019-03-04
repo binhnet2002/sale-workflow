@@ -1,4 +1,5 @@
 # Copyright 2018 ACSONE SA/NV
+# Copyright 2019 Eficent and IT Consulting Services, S.L.
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 from odoo import api, fields, models, _
 from datetime import date, timedelta
@@ -22,8 +23,8 @@ class SaleOrder(models.Model):
                         if line.blanket_order_line.partner_id != \
                                 self.partner_id:
                             raise ValidationError(_(
-                                'The vendor must be equal to the blanket order'
-                                ' lines vendor'))
+                                'The customer must be equal to the '
+                                'blanket order lines customer'))
 
 
 class SaleOrderLine(models.Model):
@@ -34,9 +35,8 @@ class SaleOrderLine(models.Model):
         string='Blanket Order line',
         copy=False)
 
-    @api.onchange('product_id')
+    @api.onchange('product_id', 'order_id.partner_id')
     def onchange_product_id(self):
-        super(SaleOrderLine, self).onchange_product_id()
         # If product has changed remove the relation with blanket order line
         if self.product_id:
             eligible_bo_lines = self.get_eligible_bo_lines()
@@ -50,9 +50,12 @@ class SaleOrderLine(models.Model):
 
     @api.onchange('blanket_order_line')
     def onchange_blanket_order_line(self):
-        if self.blanket_order_line:
-            self.product_id = self.blanket_order_line.product_id
-            self.order_id.partner_id = self.blanket_order_line.partner_id
+        if self.blanket_order_line and \
+                self.blanket_order_line.product_uom != self.product_uom:
+            self.product_uom = self.blanket_order_line.product_uom
+        if self.blanket_order_line and \
+                self.blanket_order_line.price_unit != self.price_unit:
+            self.price_unit = self.blanket_order_line.price_unit
 
     def get_assigned_bo_line(self, bo_lines):
         # We get the blanket order line with enough quantity and closest
@@ -62,8 +65,8 @@ class SaleOrderLine(models.Model):
         date_delta = timedelta(days=365)
         for line in bo_lines:
             date_schedule = fields.Date.from_string(line.date_schedule)
-            if self.product_qty >= 0:
-                if line.remaining_qty > self.product_qty:
+            if self.product_uom_qty >= 0:
+                if line.remaining_qty > self.product_uom_qty:
                     if date_schedule and date_schedule - today < date_delta:
                         assigned_bo_line = line
                         date_delta = date_schedule - today
@@ -71,14 +74,21 @@ class SaleOrderLine(models.Model):
             assigned_bo_line = bo_lines[0]
         return assigned_bo_line
 
+    def get_eligible_bo_lines_domain(self):
+        return [
+            ('product_id', '=', self.product_id.id),
+            ('order_id.partner_id', '=', self.order_id.partner_id.id),
+            ('remaining_qty', '>', 0.0),
+            ('order_id.state', '=', 'open')]
+
     def get_eligible_bo_lines(self):
-        filters = ['&', '&',
-                   ('product_id', '=', self.product_id.id),
-                   ('remaining_qty', '>', 0.0),
-                   ('order_id.state', '=', 'open')]
-        if self.product_qty:
-            filters.append(('remaining_qty', '>', self.product_qty))
-        if self.order_id.partner_id:
-            filters.append(
-                ('partner_id', '=', self.order_id.partner_id.id))
-        return self.env['sale.blanket.order.line'].search(filters)
+        domain = self.get_eligible_bo_lines_domain()
+        return self.env['sale.blanket.order.line'].search(domain)
+
+    @api.constrains('product_id')
+    def check_product_id(self):
+        if self.blanket_order_line and \
+                self.product_id != self.blanket_order_line.product_id:
+            raise ValidationError(_(
+                'The product in the blanket order and in the '
+                'sales order must match'))

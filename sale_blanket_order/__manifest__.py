@@ -4,7 +4,7 @@
     'name': 'Sale Blanket Orders',
     'category': 'Sale',
     'license': 'AGPL-3',
-    'author': 'Acsone SA/NV,Odoo Community Association (OCA)',
+    'author': 'Acsone SA/NV, Odoo Community Association (OCA)',
     'version': '11.0.1.0.0',
     'website': 'https://github.com/OCA/sale-workflow',
     'summary': "Blanket Orders",

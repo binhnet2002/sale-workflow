@@ -354,10 +354,11 @@ class BlanketOrderLine(models.Model):
         result = []
         if self.env.context.get('from_sale_order'):
             for record in self:
-                res = "[%s] - Date Scheduled: %s (remaining: %s)" % (
-                    record.order_id.name,
-                    record.date_schedule,
-                    str(record.remaining_qty))
+                res = "[%s]" % record.order_id.name
+                if record.date_schedule:
+                    res += '- %s: %s' % (
+                        _('Date Scheduled'), record.date_schedule)
+                res += '(%s: %s)' % (_('remaining'), record.remaining_qty)
                 result.append((record.id, res))
             return result
         return super(BlanketOrderLine, self).name_get()
@@ -471,15 +472,22 @@ class BlanketOrderLine(models.Model):
     def _compute_quantities(self):
         for line in self:
             sale_lines = line.sale_lines
-            line.ordered_qty = sum(l.product_uom_qty for l in sale_lines if
-                                   l.order_id.state != 'cancel' and
-                                   l.product_id == line.product_id)
-            line.invoiced_qty = sum(l.qty_invoiced for l in sale_lines if
-                                    l.order_id.state != 'cancel' and
-                                    l.product_id == line.product_id)
-            line.delivered_qty = sum(l.qty_delivered for l in sale_lines if
-                                     l.order_id.state != 'cancel' and
-                                     l.product_id == line.product_id)
+
+            line.ordered_qty = sum(
+                l.product_uom._compute_quantity(
+                    l.product_uom_qty, line.product_uom)
+                for l in sale_lines if l.order_id.state != 'cancel' and
+                l.product_id == line.product_id)
+            line.invoiced_qty = sum(
+                l.product_uom._compute_quantity(
+                    l.qty_invoiced, line.product_uom)
+                for l in sale_lines if l.order_id.state != 'cancel' and
+                l.product_id == line.product_id)
+            line.delivered_qty = sum(
+                l.product_uom._compute_quantity(
+                    l.qty_delivered, line.product_uom)
+                for l in sale_lines if l.order_id.state != 'cancel' and
+                l.product_id == line.product_id)
             line.remaining_qty = line.original_qty - line.ordered_qty
 
     @api.multi

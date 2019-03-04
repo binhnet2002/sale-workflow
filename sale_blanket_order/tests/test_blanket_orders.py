@@ -162,3 +162,51 @@ class TestSaleBlanketOrders(common.TransactionCase):
 
         self.assertEqual(bo_lines[0].remaining_qty, 10.0)
         self.assertEqual(bo_lines[1].remaining_qty, 30.0)
+
+    def test_create_sale_order_add_blanket_order_line(self):
+        """ We create a blanket order and create two sale orders
+            from the blanket order lines """
+        blanket_order = self.blanket_order_obj.create({
+            'partner_id': self.partner.id,
+            'validity_date': fields.Date.to_string(self.tomorrow),
+            'payment_term_id': self.payment_term.id,
+            'pricelist_id': self.sale_pricelist.id,
+            'line_ids': [
+                (0, 0, {
+                    'product_id': self.product.id,
+                    'product_uom': self.product.uom_id.id,
+                    'original_qty': 20.0,
+                    'price_unit': 30.0,
+                }), (0, 0, {
+                    'product_id': self.product2.id,
+                    'product_uom': self.product2.uom_id.id,
+                    'original_qty': 50.0,
+                    'price_unit': 60.0,
+                })
+            ],
+        })
+        blanket_order.sudo().onchange_partner_id()
+        blanket_order.sudo().action_confirm()
+
+        bo_lines = self.blanket_order_line_obj.search([])
+
+        sale_order = self.env['sale.order'].create({
+            'partner_id': self.partner.id,
+            'payment_term_id': self.payment_term.id,
+            'pricelist_id': self.sale_pricelist.id,
+            'line_ids': [
+                (0, 0, {
+                    'product_id': self.product.id,
+                    'product_uom': self.product.uom_id.id,
+                    'original_qty': 20.0,
+                    'price_unit': 30.0,
+                }), (0, 0, {
+                    'product_id': self.product2.id,
+                    'product_uom': self.product2.uom_id.id,
+                    'original_qty': 50.0,
+                    'price_unit': 60.0,
+                })
+            ],
+        })
+        self.assertEqual(bo_lines[0].remaining_qty, 10.0)
+        self.assertEqual(bo_lines[1].remaining_qty, 30.0)
