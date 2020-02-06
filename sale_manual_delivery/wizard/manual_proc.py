@@ -70,6 +70,11 @@ class ManualDelivery(models.TransientModel):
     partner_id = fields.Many2one(
         "res.partner", domain=PARTNER_DOMAIN, string="Delivery Address")
     commercial_partner_id = fields.Many2one("res.partner")
+    route_id = fields.Many2one(
+        'stock.location.route', string='Use specific Route',
+        domain=[('sale_selectable', '=', True)],
+        ondelete='restrict',
+        help="Leave it blank to use the same route that is in the sale line")
 
     @api.multi
     def record_picking(self):
@@ -123,8 +128,9 @@ class ManualDelivery(models.TransientModel):
                     vals["date_planned"] = date_planned
                     vals["carrier_id"] = carrier_id.id
                     vals["partner_dest_id"] = wizard.partner_id.id
-
-                    proc_group_obj.run(
+                    if wizard.route_id:
+                        vals["route_ids"] = wizard.route_id
+                    proc_group_obj.with_context(vals=vals).run(
                         wiz_line.order_line_id.product_id,
                         wiz_line.to_ship_qty,
                         wiz_line.order_line_id.product_uom,

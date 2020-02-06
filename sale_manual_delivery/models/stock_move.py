@@ -11,8 +11,10 @@ class StockMove(models.Model):
 
     def _get_new_picking_values(self):
         res = super(StockMove, self)._get_new_picking_values()
-        if self.carrier_id:
-            res["carrier_id"] = self.carrier_id.id
+        if self.env.context.get('vals'):
+            vals = self.env.context.get('vals')
+            if vals.get('carrier_id'):
+                res["carrier_id"] = vals.get('carrier_id')
         return res
 
     @api.multi
