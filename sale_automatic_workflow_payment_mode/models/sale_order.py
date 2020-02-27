@@ -10,6 +10,7 @@ class SaleOrder(models.Model):
     @api.onchange("payment_mode_id")
     def onchange_payment_mode_set_workflow(self):
         if not self.payment_mode_id:
+            self.workflow_process_id = False
             return
         workflow = self.payment_mode_id.workflow_process_id
         if workflow:

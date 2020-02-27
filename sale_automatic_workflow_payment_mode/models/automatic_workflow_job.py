@@ -26,7 +26,7 @@ class AutomaticWorkflowJob(models.Model):
 
     @api.model
     def _register_payments(self, payment_filter):
-        invoice_obj = self.env["account.invoice"]
+        invoice_obj = self.env["account.move"]
         invoices = invoice_obj.search(payment_filter)
         _logger.debug("Invoices to Register Payment: %s", invoices.ids)
         for invoice in invoices:
@@ -50,9 +50,9 @@ class AutomaticWorkflowJob(models.Model):
                 payment = self.env["account.payment"].create(
                     {
                         "invoice_ids": [(6, 0, invoice.ids)],
-                        "amount": invoice.residual,
+                        "amount": invoice.amount_residual,
                         "payment_date": fields.Date.context_today(self),
-                        "communication": invoice.reference or invoice.number,
+                        "communication": invoice.name,
                         "partner_id": invoice.partner_id.id,
                         "partner_type": partner_type,
                         "payment_type": payment_mode.payment_type,

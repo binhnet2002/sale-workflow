@@ -2,16 +2,18 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
 
-from odoo.addons.sale_automatic_workflow.tests.test_automatic_workflow_base import (
-    TestAutomaticWorkflowBase,
+from odoo.tests import tagged
+
+from odoo.addons.sale_automatic_workflow.tests.common import (
+    TestAutomaticWorkflowMixin,
+    TestCommon,
 )
 
 
-class TestAutomaticWorkflowPaymentMode(TestAutomaticWorkflowBase):
+@tagged("post_install", "-at_install")
+class TestAutomaticWorkflowPaymentMode(TestCommon, TestAutomaticWorkflowMixin):
     def create_sale_order(self, workflow, override=None):
-        new_order = super(TestAutomaticWorkflowPaymentMode, self).create_sale_order(
-            workflow, override
-        )
+        new_order = super().create_sale_order(workflow, override)
         self.pay_method = self.env["account.payment.method"].create(
             {"name": "default inbound", "code": "definb", "payment_type": "inbound"}
         )
@@ -46,11 +48,11 @@ class TestAutomaticWorkflowPaymentMode(TestAutomaticWorkflowBase):
         sale.onchange_payment_mode_set_workflow()
         self.assertEqual(sale.state, "draft")
         self.assertEqual(sale.workflow_process_id, workflow)
-        self.progress()
+        self.run_job()
         self.assertEqual(sale.state, "sale")
         self.assertTrue(sale.picking_ids)
         self.assertTrue(sale.invoice_ids)
         invoice = sale.invoice_ids
-        self.assertEqual(invoice.state, "paid")
+        self.assertEqual(invoice.state, "posted")
         picking = sale.picking_ids
         self.assertEqual(picking.state, "done")
